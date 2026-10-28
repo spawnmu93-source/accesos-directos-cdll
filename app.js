@@ -520,7 +520,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const resp = await fetch(GOOGLE_SCRIPT_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'save', system: payloadSys })
+          body: JSON.stringify({
+            action: 'save',
+            system: payloadSys,
+            userAgent: navigator.userAgent
+          })
         });
         const resData = await resp.json();
         if (resData.status === 'success') {
@@ -557,7 +561,11 @@ document.addEventListener('DOMContentLoaded', () => {
           await fetch(GOOGLE_SCRIPT_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'delete', id: id })
+            body: JSON.stringify({
+              action: 'delete',
+              id: id,
+              userAgent: navigator.userAgent
+            })
           });
           showToast(`Eliminado de Google Sheets correctamente.`, 'success');
         } catch (err) {

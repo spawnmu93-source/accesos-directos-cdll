@@ -2,31 +2,20 @@
  * ==============================================================================
  * BACKEND GOOGLE APPS SCRIPT - PORTAL DE ACCESOS DIRECTOS (CERDO DE LOS LLANOS)
  * ==============================================================================
- * Este script debe vincularse a una hoja de cálculo de Google Sheets.
- * Funciona como una API REST (GET y POST) gratuita y sin mantenimiento.
+ * Este script se vincula a la hoja de cálculo de Google Sheets.
+ * Funciona como una API REST (GET y POST) con base de datos y LOG DE AUDITORÍA.
  *
- * PASOS PARA DESPLEGARLO:
- * 1. Abrir Google Drive y crear una nueva "Hoja de cálculo de Google" (Google Sheets).
- *    Nombre sugerido: "BD Accesos Directos - Cerdo de los Llanos".
- * 2. Ir al menú superior: Extensiones > Apps Script.
- * 3. Borrar todo el código que aparezca y pegar este archivo completo.
- * 4. Hacer clic en "Guardar" (icono de disquete).
- * 5. Ejecutar una vez la función "inicializarPlanilla" para crear las cabeceras y cargar los 8 accesos iniciales.
- * 6. Hacer clic en el botón azul superior: "Implementar" (Deploy) > "Nueva implementación" (New deployment).
- * 7. En tipo, seleccionar: "Aplicación web" (Web App).
- *    - Descripción: "API Accesos Directos"
- *    - Ejecutar como: "Yo" (tu cuenta)
- *    - Quién tiene acceso: "Cualquiera" (Anyone)  <--- ¡MUY IMPORTANTE!
- * 8. Hacer clic en "Implementar", autorizar permisos y copiar la "URL de la aplicación web".
- *    (Tiene la forma: https://script.google.com/macros/s/AKfy.../exec)
- * 9. Pegar esa URL en app.js en la variable: GOOGLE_SCRIPT_API_URL
+ * PESTAÑAS QUE GESTIONA AUTOMÁTICAMENTE:
+ * 1. "Accesos": Base de datos principal de los sistemas.
+ * 2. "Logs": Registro histórico de todas las altas, modificaciones y bajas.
  * ==============================================================================
  */
 
 const SHEET_NAME = 'Accesos';
+const LOG_SHEET_NAME = 'Logs';
 
 /**
- * Crea o recupera la hoja y asegura sus encabezados.
+ * Crea o recupera la hoja de datos principal y asegura sus encabezados.
  */
 function getOrCreateSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -44,13 +33,67 @@ function getOrCreateSheet() {
 }
 
 /**
- * Función auxiliar para sembrar los datos iniciales si la planilla está vacía.
+ * Crea o recupera la hoja de Auditoría / Logs.
+ */
+function getOrCreateLogSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(LOG_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(LOG_SHEET_NAME);
+    sheet.appendRow([
+      'Fecha y Hora',
+      'Timestamp ISO',
+      'Tipo de Acción',
+      'ID Sistema',
+      'Título',
+      'URL',
+      'Categoría',
+      'Detalle de Modificación',
+      'Dispositivo / Navegador'
+    ]);
+    const headerRange = sheet.getRange(1, 1, 1, 9);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#0f172a');
+    headerRange.setFontColor('#38bdf8');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * Registra una entrada en la pestaña de Logs.
+ */
+function registrarLog(tipoAccion, id, titulo, url, categoria, detalle, userAgent) {
+  try {
+    const logSheet = getOrCreateLogSheet();
+    const tz = Session.getScriptTimeZone() || 'America/Argentina/Buenos_Aires';
+    const fechaLocal = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm:ss');
+    const isoDate = new Date().toISOString();
+
+    logSheet.appendRow([
+      fechaLocal,
+      isoDate,
+      tipoAccion,
+      id || '',
+      titulo || '',
+      url || '',
+      categoria || '',
+      detalle || '',
+      userAgent || ''
+    ]);
+  } catch (err) {
+    Logger.log('Error al registrar log: ' + err.toString());
+  }
+}
+
+/**
+ * Inicialización inicial de la planilla si está vacía.
  */
 function inicializarPlanilla() {
   const sheet = getOrCreateSheet();
+  getOrCreateLogSheet(); // Inicializa también la pestaña de logs
   const data = sheet.getDataRange().getValues();
   
-  // Si solo están las cabeceras, cargar los 8 sistemas base
   if (data.length <= 1) {
     const defaultData = [
       ['sys-1', 'Agriness S4', 'https://s4farm.agriness.com/', 'IMG/1.png', 'Gestion', 'Plataforma de gestión y control de datos de granjas porcinas.', new Date().toISOString()],
@@ -65,6 +108,7 @@ function inicializarPlanilla() {
     
     sheet.getRange(2, 1, defaultData.length, 7).setValues(defaultData);
     SpreadsheetApp.flush();
+    registrarLog('SISTEMA', 'INIT', 'Inicialización', '', '', 'Planilla y accesos inicializados con éxito.', 'Servidor');
     Logger.log('Planilla inicializada con éxito con los 8 accesos directos.');
   } else {
     Logger.log('La planilla ya tiene datos cargados.');
@@ -85,7 +129,7 @@ function doGet(e) {
 
     const rows = data.slice(1);
     const systems = rows
-      .filter(r => r[0] || r[1]) // Ignorar filas vacías
+      .filter(r => r[0] || r[1])
       .map(r => ({
         id: String(r[0] || ''),
         title: String(r[1] || ''),
@@ -102,30 +146,47 @@ function doGet(e) {
 }
 
 /**
- * POST: Crea, actualiza o elimina accesos directos
+ * POST: Crea, actualiza o elimina accesos directos y REGISTRA AUDITORÍA
  */
 function doPost(e) {
   try {
     const sheet = getOrCreateSheet();
     const payload = JSON.parse(e.postData.contents);
     const action = payload.action || 'save'; // 'save' | 'delete'
+    const userAgent = payload.userAgent || 'Desconocido';
 
     const data = sheet.getDataRange().getValues();
     const rows = data.slice(1);
 
-    // 1. ELIMINAR
+    // 1. ELIMINAR ACCESO
     if (action === 'delete') {
       const targetId = String(payload.id);
       for (let i = 0; i < rows.length; i++) {
         if (String(rows[i][0]) === targetId) {
-          sheet.deleteRow(i + 2); // +2 por índice 1-based y fila de encabezados
+          const deletedTitle = String(rows[i][1] || '');
+          const deletedUrl = String(rows[i][2] || '');
+          const deletedCat = String(rows[i][4] || '');
+
+          sheet.deleteRow(i + 2); // +2 por fila 1 de cabecera e índice 1-based
+
+          // Registro en LOGS
+          registrarLog(
+            'ELIMINAR',
+            targetId,
+            deletedTitle,
+            deletedUrl,
+            deletedCat,
+            'Acceso eliminado permanentemente desde el panel web.',
+            userAgent
+          );
+
           return jsonResponse({ status: 'success', message: 'Acceso eliminado con éxito.' });
         }
       }
       return jsonResponse({ status: 'error', message: 'ID no encontrado para eliminar.' });
     }
 
-    // 2. GUARDAR / ACTUALIZAR
+    // 2. GUARDAR / ACTUALIZAR ACCESO
     if (action === 'save') {
       const sys = payload.system;
       if (!sys || !sys.title || !sys.url) {
@@ -134,10 +195,12 @@ function doPost(e) {
 
       const targetId = String(sys.id || ('sys-' + Date.now()));
       let rowIndex = -1;
+      let existingRow = null;
 
       for (let i = 0; i < rows.length; i++) {
         if (String(rows[i][0]) === targetId) {
           rowIndex = i + 2;
+          existingRow = rows[i];
           break;
         }
       }
@@ -154,11 +217,42 @@ function doPost(e) {
       ];
 
       if (rowIndex !== -1) {
-        // Actualizar fila existente
+        // ACTUALIZACIÓN DE ACCESO EXISTENTE
         sheet.getRange(rowIndex, 1, 1, 7).setValues([rowData]);
+
+        // Calcular cambios específicos
+        const cambios = [];
+        if (existingRow) {
+          if (String(existingRow[1]) !== sys.title) cambios.push(`Título: "${existingRow[1]}" -> "${sys.title}"`);
+          if (String(existingRow[2]) !== sys.url) cambios.push(`URL: "${existingRow[2]}" -> "${sys.url}"`);
+          if (String(existingRow[3]) !== sys.img) cambios.push(`IMG: "${existingRow[3]}" -> "${sys.img}"`);
+          if (String(existingRow[4]) !== sys.category) cambios.push(`Categoría: "${existingRow[4]}" -> "${sys.category}"`);
+          if (String(existingRow[5]) !== (sys.description || '')) cambios.push(`Descripción modificada`);
+        }
+        const detalle = cambios.length > 0 ? cambios.join(' | ') : 'Edición guardada.';
+
+        registrarLog(
+          'MODIFICAR',
+          targetId,
+          sys.title,
+          sys.url,
+          sys.category || 'Otros',
+          detalle,
+          userAgent
+        );
       } else {
-        // Insertar nueva fila al final
+        // CREACIÓN DE NUEVO ACCESO
         sheet.appendRow(rowData);
+
+        registrarLog(
+          'CREAR',
+          targetId,
+          sys.title,
+          sys.url,
+          sys.category || 'Otros',
+          `Nuevo acceso registrado desde el panel: "${sys.title}".`,
+          userAgent
+        );
       }
 
       sys.id = targetId;
@@ -172,7 +266,7 @@ function doPost(e) {
 }
 
 /**
- * Genera una respuesta con encabezados JSON y CORS habilitado
+ * Genera respuesta JSON
  */
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
