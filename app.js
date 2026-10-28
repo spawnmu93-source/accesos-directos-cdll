@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // CONFIGURACIÓN DE BASE DE DATOS (GOOGLE APPS SCRIPT / GOOGLE SHEETS)
   // Pega aquí la URL de la Web App desplegada (ej: 'https://script.google.com/macros/s/AKfy.../exec')
   // ==========================================================================
-  const GOOGLE_SCRIPT_API_URL = '';
+  const GOOGLE_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbw81QJED2TTprAQXVM3hMkrP-hgxDkekczYhY8epukZT8DAPZ-4B6Uge7G2fzOLfO1VCg/exec';
 
   // Initial default systems if no CSV or localStorage exists
   const DEFAULT_SYSTEMS = [
