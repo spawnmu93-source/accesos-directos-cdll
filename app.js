@@ -4,6 +4,12 @@
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // ==========================================================================
+  // CONFIGURACIÓN DE BASE DE DATOS (GOOGLE APPS SCRIPT / GOOGLE SHEETS)
+  // Pega aquí la URL de la Web App desplegada (ej: 'https://script.google.com/macros/s/AKfy.../exec')
+  // ==========================================================================
+  const GOOGLE_SCRIPT_API_URL = '';
+
   // Initial default systems if no CSV or localStorage exists
   const DEFAULT_SYSTEMS = [
     {
@@ -118,13 +124,44 @@ document.addEventListener('DOMContentLoaded', () => {
   async function init() {
     initTheme();
     startClock();
+
+    // Renderizado instantáneo desde cache local (Stale-While-Revalidate)
+    const cached = localStorage.getItem('cerdo_accesos_systems');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          systems = parsed;
+          renderGrid();
+        }
+      } catch (e) {}
+    }
+
     await loadSystemsData();
     renderGrid();
     setupEventListeners();
   }
 
-  // Load dynamically from Paginas.csv or DEFAULT_SYSTEMS, merging seamlessly
+  // Carga dinámica desde Google Sheets API, Paginas.csv o DEFAULT_SYSTEMS
   async function loadSystemsData() {
+    // 1. Si está configurada la API de Google Apps Script, cargar desde la base de datos central
+    if (GOOGLE_SCRIPT_API_URL && GOOGLE_SCRIPT_API_URL.trim().length > 0) {
+      try {
+        const response = await fetch(GOOGLE_SCRIPT_API_URL + '?t=' + Date.now());
+        if (response.ok) {
+          const json = await response.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            systems = json.data;
+            saveSystemsToStorage();
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('No se pudo conectar con Google Sheets API, usando respaldo local/CSV:', err);
+      }
+    }
+
+    // 2. Respaldo: Paginas.csv
     let csvSystems = [];
     try {
       // Add cache buster timestamp to ensure latest CSV is always fetched
@@ -420,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
     systemModal.classList.add('hidden');
   }
 
-  function handleFormSubmit(e) {
+  async function handleFormSubmit(e) {
     e.preventDefault();
 
     const id = systemIdInput.value;
@@ -435,23 +472,32 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const saveBtn = document.getElementById('saveSystemBtn');
+    const originalBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+    }
+
+    let payloadSys = null;
+
     if (id) {
-      // Edit existing
+      // Editar existente
       const index = systems.findIndex(s => s.id === id);
+      payloadSys = {
+        id: id,
+        title: title,
+        url: url,
+        img: resolveImgPath(imgRaw),
+        category: category,
+        description: description
+      };
       if (index !== -1) {
-        systems[index] = {
-          id: id,
-          title: title,
-          url: url,
-          img: resolveImgPath(imgRaw),
-          category: category,
-          description: description
-        };
-        showToast('Acceso actualizado correctamente.', 'success');
+        systems[index] = payloadSys;
       }
     } else {
-      // Add new
-      const newSys = {
+      // Agregar nuevo
+      payloadSys = {
         id: 'sys-' + Date.now(),
         title: title,
         url: url,
@@ -460,16 +506,43 @@ document.addEventListener('DOMContentLoaded', () => {
         description: description,
         isCustom: true
       };
-      systems.unshift(newSys);
-      showToast('Nuevo acceso agregado con éxito.', 'success');
+      systems.unshift(payloadSys);
     }
 
+    // Actualización optimista local e inmediata
     saveSystemsToStorage();
     renderGrid();
     closeModal();
+
+    // Sincronización en la nube si está configurada la API de Google Apps Script
+    if (GOOGLE_SCRIPT_API_URL && GOOGLE_SCRIPT_API_URL.trim().length > 0) {
+      try {
+        const resp = await fetch(GOOGLE_SCRIPT_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'save', system: payloadSys })
+        });
+        const resData = await resp.json();
+        if (resData.status === 'success') {
+          showToast(id ? 'Acceso actualizado en Google Sheets.' : 'Acceso guardado en Google Sheets.', 'success');
+        } else {
+          showToast(id ? 'Actualizado en caché local.' : 'Guardado en caché local.', 'info');
+        }
+      } catch (err) {
+        console.error('Error al sincronizar con Google Sheets:', err);
+        showToast(id ? 'Actualizado localmente (sin conexión a BD).' : 'Guardado localmente (sin conexión a BD).', 'info');
+      }
+    } else {
+      showToast(id ? 'Acceso actualizado correctamente.' : 'Nuevo acceso agregado con éxito.', 'success');
+    }
+
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = originalBtnHtml;
+    }
   }
 
-  function deleteSystem(id) {
+  async function deleteSystem(id) {
     const sys = systems.find(s => s.id === id);
     if (!sys) return;
 
@@ -478,6 +551,19 @@ document.addEventListener('DOMContentLoaded', () => {
       saveSystemsToStorage();
       renderGrid();
       showToast(`Acceso a "${sys.title}" eliminado.`, 'info');
+
+      if (GOOGLE_SCRIPT_API_URL && GOOGLE_SCRIPT_API_URL.trim().length > 0) {
+        try {
+          await fetch(GOOGLE_SCRIPT_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'delete', id: id })
+          });
+          showToast(`Eliminado de Google Sheets correctamente.`, 'success');
+        } catch (err) {
+          console.error('Error al eliminar en Google Sheets:', err);
+        }
+      }
     }
   }
 
