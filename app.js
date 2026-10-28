@@ -53,6 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
       img: 'IMG/6.png',
       category: 'Analitica',
       description: 'Reporte y control de aplicaciones APKing.'
+    },
+    {
+      id: 'sys-7',
+      title: 'Control de Cajas',
+      url: 'https://script.google.com/macros/s/AKfycbyu7TG6wo-Ekl3MYVb6mSjqQS1AUS32kyVEIVTJggMqwx5ahYtnp35e2FzPQjZrQDJq/exec?vista=informe',
+      img: 'IMG/Google_Apps_Script.svg',
+      category: 'Gestion',
+      description: 'Control de cajas y gestión de informes financieros.'
+    },
+    {
+      id: 'sys-8',
+      title: 'Informe de ventas - Ger',
+      url: 'https://script.google.com/d/1gQ3EfqKdTN2zdQp2p2nCtbD1tKS6Dzthpsr3uBtxiTjbd1KrFyCEP8_H/edit?usp=drive_link',
+      img: 'IMG/Google_Apps_Script.svg',
+      category: 'Analitica',
+      description: 'Informe gerencial y análisis de ventas.'
     }
   ];
 
@@ -170,14 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = parts[1];
         const imgVal = parts[2] || (i).toString();
 
-        // Categorize automatically based on title or URL
-        let category = 'Otros';
-        if (title.toLowerCase().includes('agriness') || title.toLowerCase().includes('trace')) {
-          category = 'Gestion';
-        } else if (title.toLowerCase().includes('caliper') || url.includes('datastudio')) {
-          category = 'Analitica';
-        } else if (title.toLowerCase().includes('ia') || title.toLowerCase().includes('ai') || title.toLowerCase().includes('pig counter')) {
-          category = 'IA';
+        // Categorize automatically based on title, URL or optional 4th column
+        const t = title.toLowerCase();
+        const u = url.toLowerCase();
+        let category = (parts.length >= 4 && parts[3]) ? parts[3] : 'Otros';
+
+        if (category === 'Otros') {
+          if (t.includes('agriness') || t.includes('trace') || t.includes('caja') || t.includes('condor') || t.includes('granja')) {
+            category = 'Gestion';
+          } else if (t.includes('caliper') || t.includes('venta') || t.includes('informe') || t.includes('apking') || u.includes('datastudio')) {
+            category = 'Analitica';
+          } else if (t.includes('ia') || t.includes('ai') || t.includes('pig counter')) {
+            category = 'IA';
+          }
         }
 
         result.push({
@@ -199,8 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
     if (clean.includes('/')) return clean;
     if (!isNaN(clean)) return `IMG/${clean}.png`;
-    if (!clean.endsWith('.png') && !clean.endsWith('.jpg') && !clean.endsWith('.svg')) return `IMG/${clean}.png`;
-    return `IMG/${clean}`;
+    const lower = clean.toLowerCase();
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.svg') || lower.endsWith('.webp')) {
+      return `IMG/${clean}`;
+    }
+    return `IMG/${clean}.png`;
   }
 
   function saveSystemsToStorage() {
