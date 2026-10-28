@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal de Accesos Directos | Sistemas Empresa</title>
+  <meta name="description" content="Panel de accesos directos a los sistemas corporativos. Acceso rápido y centralizado a todas las herramientas.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome for UI Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background Decorative Glows -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- Header section -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-logo-wrap">
+          <img src="IMG/Logo Pagina.png" alt="Logo Empresa" class="brand-logo-img">
+        </div>
+        <div class="brand-text">
+          <h1>Portal de Accesos Directos</h1>
+          <p class="subtitle">Sistemas & Herramientas Corporativas</p>
+        </div>
+      </div>
+
+      <!-- Right header actions -->
+      <div class="header-actions">
+        <!-- Live Clock Widget -->
+        <div class="clock-widget" id="clockWidget">
+          <span class="clock-time" id="clockTime">--:--</span>
+          <span class="clock-date" id="clockDate">--- -- ---</span>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button class="icon-btn" id="themeToggleBtn" title="Cambiar tema (Claro/Oscuro)">
+          <i class="fa-solid fa-moon" id="themeIcon"></i>
+        </button>
+
+        <!-- Add system button -->
+        <button class="primary-btn" id="addSystemBtn">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nuevo Acceso</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main container -->
+  <main class="app-main">
+    <div class="main-container">
+
+      <!-- Control Bar: Search and Categories -->
+      <section class="controls-section">
+        <!-- Search input -->
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="Buscar sistema por nombre, URL o descripción..." autocomplete="off">
+          <button class="clear-search-btn hidden" id="clearSearchBtn" title="Limpiar búsqueda">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="categories-bar" id="categoriesBar">
+          <button class="category-chip active" data-category="all">
+            <i class="fa-solid fa-layer-group"></i> Todos
+          </button>
+          <button class="category-chip" data-category="Gestion">
+            <i class="fa-solid fa-tractor"></i> Granja & Gestión
+          </button>
+          <button class="category-chip" data-category="Analitica">
+            <i class="fa-solid fa-chart-pie"></i> Analítica & Datos
+          </button>
+          <button class="category-chip" data-category="IA">
+            <i class="fa-solid fa-brain"></i> IA & Monitoreo
+          </button>
+          <button class="category-chip" data-category="Otros">
+            <i class="fa-solid fa-ellipsis-h"></i> Otros
+          </button>
+        </div>
+      </section>
+
+      <!-- Stats Summary -->
+      <div class="counter-badge">
+        Mostrando <strong id="visibleCount">0</strong> de <span id="totalCount">0</span> sistemas
+      </div>
+
+      <!-- Systems Grid -->
+      <section class="systems-grid" id="systemsGrid">
+        <!-- System cards dynamically rendered via JavaScript -->
+      </section>
+
+      <!-- Empty state container (hidden by default) -->
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">
+          <i class="fa-solid fa-magnifying-glass-triangle"></i>
+        </div>
+        <h3>No se encontraron sistemas</h3>
+        <p>Intenta con otros términos de búsqueda o selecciona otra categoría.</p>
+        <button class="secondary-btn" id="resetFiltersBtn">Ver todos los sistemas</button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal for Adding / Editing System -->
+  <div class="modal-backdrop hidden" id="systemModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle"><i class="fa-solid fa-plus-circle"></i> Agregar Nuevo Acceso Directo</h2>
+        <button class="close-modal-btn" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="systemForm" class="modal-form">
+        <input type="hidden" id="systemId">
+
+        <div class="form-group">
+          <label for="inputTitle">Título del Sistema *</label>
+          <input type="text" id="inputTitle" placeholder="Ej: Agriness S4, SAP, CRM..." required>
+        </div>
+
+        <div class="form-group">
+          <label for="inputUrl">Enlace / URL Completa *</label>
+          <input type="url" id="inputUrl" placeholder="https://ejemplo.com" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="inputImg">Ruta de Imagen / Logo</label>
+            <input type="text" id="inputImg" placeholder="Ej: IMG/1.png o 1 o URL externa">
+            <small class="form-hint">Número (1, 2, 3), ruta (IMG/1.png) o URL.</small>
+          </div>
+
+          <div class="form-group flex-1">
+            <label for="inputCategory">Categoría</label>
+            <select id="inputCategory">
+              <option value="Gestion">Granja & Gestión</option>
+              <option value="Analitica">Analítica & Datos</option>
+              <option value="IA">IA & Monitoreo</option>
+              <option value="Otros" selected>Otros</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="inputDescription">Descripción (Opcional)</label>
+          <input type="text" id="inputDescription" placeholder="Breve nota de uso de la herramienta">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="secondary-btn" id="cancelModalBtn">Cancelar</button>
+          <button type="submit" class="primary-btn" id="saveSystemBtn">
+            <i class="fa-solid fa-floppy-disk"></i> Guardar Acceso
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>© <span id="currentYear"></span> Cerdo de los Llanos - Panel de Control & Accesos Directos</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
